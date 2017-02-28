@@ -14,7 +14,11 @@ def proc_spreadsheet(filename)
       next if erow[0].nil?
       row = erow.to_a
       row.push year_row
-      row[1] = row[1].gsub(/ PBLC SCHS/,'').gsub(/ CO/,' County').gsub(/[A-Za-z']+/,&:capitalize).strip
+      row[1] = row[1]
+                     .gsub(/ PBLC SCHS/,'')
+                     .gsub(/ CO/,' County')
+                     .gsub(/ Cty/,' City')
+                     .gsub(/[A-Za-z']+/,&:capitalize).strip
       row[3] = row[3].gsub(/ ELEM/,' Elementary').gsub(/[A-Za-z']+/,&:capitalize)
       row = row.map { |entry| entry.respond_to?(:round) ? entry.round : entry }
       csv << row

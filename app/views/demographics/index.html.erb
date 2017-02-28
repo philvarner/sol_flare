@@ -1,0 +1,30 @@
+
+<h1>Listing Demographics</h1>
+
+<table border="1">
+  <tr>
+    <th>ID</th>
+    <th>School ID</th>
+    <th>Division ID</th>
+    <th>School Year</th>
+    <th>Grade</th>
+    <th>Category</th>
+    <th>Category Name</th>
+    <th>Count</th>
+    <th>Link</th>
+  </tr>
+
+  <% @ds.each do |d| %>
+      <tr>
+          <td><%= d.id %></td>
+          <td><%= d.school_id %></td>
+          <td><%= d.division_id %></td>
+          <td><%= d.school_year %></td>
+          <td><%= d.grade %></td>
+          <td><%= d.category %></td>
+          <td><%= d.category_name %></td>
+          <td><%= d.count %></td>
+        <td><%= link_to 'Show', demographic_path(d) %></td>
+      </tr>
+  <% end %>
+</table>

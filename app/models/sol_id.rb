@@ -1,0 +1,2 @@
+class SolId < ApplicationRecord
+end
