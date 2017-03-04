@@ -1,0 +1,32 @@
+
+<h1>Listing of Scores</h1>
+
+<table border="1">
+  <tr>
+    <th>ID</th>
+    <th>School</th>
+    <th>Division</th>
+    <th>School Year</th>
+    <th>Grade</th>
+    <th>Test Type</th>
+    <th>Result Level</th>
+    <th>Subgroup</th>
+    <th>Percentage</th>
+    <th>Link</th>
+  </tr>
+
+  <% @scores.each do |score| %>
+      <tr>
+        <td><%= score.id %></td>
+        <td><%= score.school.nil? ? score.school_id.to_s : score.school.name %></td>
+        <td><%= score.school.nil? || score.school.division.nil? ? score.district_id.to_s : score.school.division.name %></td>
+        <td><%= score.school_year %></td>
+        <td><%= score.grade %></td>
+        <td><%= score.test_type %></td>
+        <td><%= score.result_level_name %></td>
+        <td><%= score.subgroup_name %></td>
+        <td><%= score.percentage %></td>
+        <td><%= link_to 'Show', score_path(score) %></td>
+      </tr>
+  <% end %>
+</table>

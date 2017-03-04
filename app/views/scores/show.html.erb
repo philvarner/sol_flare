@@ -1,0 +1,12 @@
+<ul>
+  <li>ID: <%= @score.id %> </li>
+  <li>School ID: <%= @score.school_id %> </li>
+  <li>School: <%= @score.school.nil? ? @score.school_id.to_s : @score.school.name %> </li>
+  <li>District: <%= @score.school.nil? || @score.school.division.nil? ? @score.district_id.to_s : @score.school.division.name %></li>
+  <li>School Year: <%= @score.school_year %> </li>
+  <li>Grade: <%= @score.grade %> </li>
+  <li>Test Type: <%= @score.test_type %> </li>
+  <li>Result Level: <%= @score.result_level_name %> </li>
+  <li>Subgroup: <%= @score.subgroup_name %> </li>
+  <li>Percentage: <%= @score.percentage %> </li>
+</ul>

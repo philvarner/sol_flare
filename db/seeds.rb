@@ -45,64 +45,72 @@ ECON_DISADV = 202 # Economically Disadvantaged
 ELL = 203 # English Learners
 MIGRANT = 204 # Migrant
 
-SOL_SCORE_DG_CODES = {"All Students" => TOTAL_ALL_COL, "Female" => FEMALE, "Male" => MALE, "Black" => BLACK,
-                      "Hispanic" => HISPANIC, "White" => WHITE, "Two or more races" => TWO_OR_MORE,
-                      "Asian" => ASIAN, "Native Hawaiian" => NH_PI, "American Indian" => AM_IN,
-                      "Students with Disabilities" => DISABILITIES, "Economically Disadvantaged" => ECON_DISADV,
-                      "English Learners" => ELL, "Migrant" => MIGRANT}
+SOL_SCORE_DG_CODES = {'All Students' => TOTAL_ALL_COL, 'Female' => FEMALE, 'Male' => MALE, 'Black' => BLACK,
+                      'Hispanic' => HISPANIC, 'White' => WHITE, 'Two or more races' => TWO_OR_MORE,
+                      'Asian' => ASIAN, 'Native Hawaiian' => NH_PI, 'American Indian' => AM_IN,
+                      'Students with Disabilities' => DISABILITIES, 'Economically Disadvantaged' => ECON_DISADV,
+                      'English Learners' => ELL, 'Migrant' => MIGRANT}
 
-RESULT_LEVEL_CODES = {"Fail" => 0, "Proficient" => 1, "Advanced" => 2}
+RESULT_LEVEL_CODES = {'Fail' => 0, 'Proficient' => 1, 'Advanced' => 2}
+
+@schools = {}
+
+def lookup_school(school_id, division_id)
+
+  key = school_id.to_s + '_' + division_id.to_s
+  if @schools.has_key? (key)
+    return @schools[key]
+  else
+    school = School.find_by school_id: school_id, division_id: division_id
+    @schools[key] = school
+  end
+
+  if school.nil?
+    p 'school missing for ' + school_id + ' ' + division_id
+    abort
+  end
+
+  # p school
+  school
+end
+
+###################
+# Start of script #
+###################
 
 division_name_to_id = {}
 school_name_to_school_id = {}
 school_name_to_division_id = {}
 dgs = []
-score_rows = []
 
-CSV.foreach("db/data/demographic.csv") do |row|
-  division_id = row[DIV_ID_COL].strip
-  division_name = row[DIV_NAME_COL].strip
-  school_id = row[SCHOOL_ID_COL].strip
-  school_name = row[SCHOOL_NAME_COL].strip
-  division_name_to_id[division_name] = division_id if not division_name_to_id.has_key? division_name
-  school_name_to_school_id[school_name] = school_id if not school_name_to_school_id.has_key? school_name
-  school_name_to_division_id[school_name] = division_id if not school_name_to_division_id.has_key? school_name
-
-  grade = row[GRADE_COL].strip
-  year = row[YEAR_COL].strip
-  (HOAR_M_COL..TWOOMR_F_COL).each do |i|
-    dgs << {:school_id => school_id, :division_id => division_id, :school_year => year,
-            :grade => grade, :category => i, :count => row[i].strip}
-  end
-
-end
+puts 'Starting seeding...'
+start = Time.now
 
 Score.delete_all
 Demographic.delete_all
 School.delete_all
 Division.delete_all
 
-################################
-# Districts
-################################
-
-# p division_name_to_id
-
-Division.transaction do
-  division_name_to_id.each do |name, id|
-    Division.create(id: id, name: name)
+CSV.foreach('db/data/demographic.csv') do |row|
+  division_id = row[DIV_ID_COL].strip
+  division_name = row[DIV_NAME_COL].strip
+  school_id = row[SCHOOL_ID_COL].strip
+  school_name = row[SCHOOL_NAME_COL].strip.gsub(/Charter School/, 'Charter')
+  if not division_name_to_id.has_key? division_name
+    division_name_to_id[division_name] = division_id.to_i
+    Division.create(id: division_id.to_i, name: division_name)
   end
-end
+  school_name_to_division_id[school_name] = division_id.to_i if not school_name_to_division_id.has_key? school_name
+  if not school_name_to_school_id.has_key? school_name
+    school_name_to_school_id[school_name] = school_id.to_i
+    School.create(school_id: school_id.to_i, division_id: division_id.to_i, name: school_name)
+  end
 
-################################
-# Schools
-################################
-
-# p school_name_to_school_id
-
-School.transaction do
-  school_name_to_school_id.each do |name, id|
-    School.create(school_id: id, name: name, division_id: school_name_to_division_id[name])
+  grade = row[GRADE_COL].strip
+  year = row[YEAR_COL].strip
+  (HOAR_M_COL..TWOOMR_F_COL).each do |i|
+    school = lookup_school(school_id, division_id)
+    dgs << {:school_id => school.id, :school_year => year, :grade => grade, :category => i, :count => row[i].strip}
   end
 end
 
@@ -121,16 +129,18 @@ end
 ################################
 
 scores = []
-CSV.foreach("db/data/scores.csv") do |row|
+
+CSV.foreach('db/data/scores.csv') do |row|
   next if row.empty?
 
-  school_name = row[0].strip
+  school_name = row[0].strip.gsub(/\./, '').gsub(/Charter School/, 'Charter')
+
   school_id = school_name_to_school_id[school_name]
   division_id = school_name_to_division_id[school_name]
   # division_name = row[1].strip.gsub(/ Public Schools/, "") 
   year = row[2].strip
   test_type = row[3].strip
-  grade = row[4].strip.gsub(/Grade /, "")
+  grade = row[4].strip.gsub(/Grade /, '')
   result_level = row[5].strip
   subgroup = row[6].strip
   percentage = row[7].strip
@@ -140,10 +150,16 @@ CSV.foreach("db/data/scores.csv") do |row|
     abort
   end
 
-  scores << {:school_id => school_id, :division_id => division_id, :school_year => year,
+  if school_id.nil? or division_id.nil?
+    p 'school id ' + school_id.to_s + ' or divison_id ' + division_id.to_s + ' nil for ' + school_name.to_s
+    abort
+  end
+
+  school = lookup_school(school_id, division_id)
+
+  scores << {:school_id => school.id, :school_year => year,
              :test_type => test_type, :grade => grade, :result_level => RESULT_LEVEL_CODES[result_level],
-             :subgroup => SOL_SCORE_DG_CODES[subgroup], :percentage => percentage
-  }
+             :subgroup => SOL_SCORE_DG_CODES[subgroup], :percentage => percentage }
 end
 
 # p scores
@@ -152,3 +168,4 @@ Score.transaction do
   Score.create(scores)
 end
 
+puts "Ran in %s s" % (Time.now - start).round.to_s
