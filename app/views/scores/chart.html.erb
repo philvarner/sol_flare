@@ -1,0 +1,138 @@
+<div class='page'>
+
+  <!--
+  <div class='menu-container'>
+    <div class='menu'>
+      <div class='date'>Aug 14, 2016</div>
+      <div class='links'>
+
+        <div class='signup'>Sign Up</div>
+        <div class='login'>Login</div>
+      </div>
+    </div>
+  </div>
+  -->
+
+
+  <header class='header-container'>
+    <div class='header'>
+      <div class='subscribe'><h1>Flare: Explore Virginia SOL Scores</h1></div>
+      <!-- <div class='logo'><img src='images/awesome-logo.svg'/></div>
+       <div class='social'><img src='images/social-icons.svg'/></div> -->
+    </div>
+    <nav>
+      <ul>
+        <li><a href='#'>Home</a></li>
+        <li><a href='#'>About</a></li>
+        <li><a href='#'>Nav1</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <div class="content-container">
+
+    <div class="content-main">
+      <div id="sidebar" class="sidebar">
+
+        <%= form_tag("#", method: "get") do %>
+
+            <%= select("", "sid", @schools.collect { |s| [s.division.name + " - " + s.name, s.id] }) %>
+
+            <%= select("", "subgroup", Codes.get_sol_demo_codes.collect { |k, v| [v, k] }, {:selected => '21'}, {:multiple => true}) %>
+
+            <%= select("", "test_type", Codes.get_test_types) %>
+
+            <%= select("", "grade", Codes.get_grades) %>
+
+        <% end %>
+
+        <button class="button">
+          Query
+        </button>
+
+      </div>
+
+      <div id="chart" class="chart"></div>
+    </div>
+
+    <div id="json" class="json"></div>
+
+  </div>
+
+  <footer>&copy; 2017 Phil Varner</footer>
+
+</div>
+
+
+<script>
+
+    var update = function (school_id, subgroup, test_type, grade) {
+        $.ajax({
+            url: 'http://localhost:3000/scores?school_id=' + school_id + '&grade=' + grade
+            + '&subgroup=' + subgroup + '&test_type=' + test_type,
+            dataType: 'jsonapi',
+            accepts: {
+                jsonapi: 'application/vnd.api+json'
+            },
+            converters: {
+                'text jsonapi': function (r) {
+                    return JSON.parse(r);
+                }
+            }
+        })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                alert(errorThrown);
+            })
+            .done(function (msg) {
+                $('#json').html('<pre>' + JSON.stringify(msg, null, '\t') + '</pre>');
+
+                xaxis = [];
+                $.each(msg['scores'], function (i, val) {
+                    xaxis.push(val['year'] + " " + val['dcode_name']);
+                });
+
+                strata1 = ["Fail"];
+                strata2 = ["Proficient"];
+                strata3 = ["Advanced"];
+                $.each(msg['scores'], function (i, val) {
+                    strata1.push(val['results'][0]['percentage']);
+                    strata2.push(val['results'][1]['percentage']);
+                    strata3.push(val['results'][2]['percentage']);
+                });
+
+                var chart = c3.generate({
+                    bindto: '#chart',
+                    data: {
+                        columns: [strata1, strata2, strata3],
+                        type: 'bar',
+                        groups: [[strata1[0], strata2[0], strata3[0]]],
+                        order: null, // don't sort
+                        colors: {
+                            Fail: '#bae4b3',
+                            Proficient: '#74c476',
+                            Advanced: '#31a354'
+                        }
+                    },
+                    axis: {
+                        x: {
+                            type: 'category',
+                            categories: xaxis
+                        },
+                        y: {
+                            max: 100,
+                            padding: {top: 0, bottom: 0}
+                        }
+                    },
+                    bar: {
+                        width: 50
+                    }
+                });
+            });
+    };
+
+    $.ready(
+        $('.button').click(function (e) {
+            update($('#_sid').val(), $('#_subgroup').val(), $('#_test_type').val(), $('#_grade').val());
+        })
+    );
+</script>

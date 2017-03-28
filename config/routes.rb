@@ -9,7 +9,10 @@ Rails.application.routes.draw do
   resources :demographics
   resources :divisions
   resources :schools
-  resources :scores
+  resources :scores do
+    get 'chart', :on => :collection
+  end
+
   # resources :solIds
 
 end

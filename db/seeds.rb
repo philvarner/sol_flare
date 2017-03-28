@@ -53,24 +53,43 @@ SOL_SCORE_DG_CODES = {'All Students' => TOTAL_ALL_COL, 'Female' => FEMALE, 'Male
 
 RESULT_LEVEL_CODES = {'Fail' => 0, 'Proficient' => 1, 'Advanced' => 2}
 
+SCHOOL_NAME_CHANGES = {'Mills E. Godwin Middle' => "George M. Hampton Middle",
+                       "Arlington Mill High" => "Arlington Community High", "Byrd Middle" => "Quioccasin Middle",
+                       'Campostella Elementary' => 'Southside Stem Academy At Campostella',
+                       'Addison Aerospace Magnet Middle' => 'Lucy Addison Aerospace Magnet Middle',
+                       'Chesterfield Community High' => 'Carver College And Career Academy',
+                       'John Randolph Tucker High' => 'Tucker High',
+                       'Jackson Davis Elementary' => 'Davis Elementary',
+                       'RC Longan Elementary' => 'Longan Elementary',
+                       'Ruby F Carver Elementary' => 'Carver Elementary',
+                       'Jacob L Adams Elementary' => 'Adams Elementary',
+                       'Elizabeth Holladay Elementary' => 'Holladay Elementary',
+                       'Seatack Elementary an Achievable Dream Academy' => 'Seatack Elementary An Achievable Dream Academy',
+                       'Quioccasin Middle School' => 'Quioccasin Middle',
+                       'LaCrosse Elementary' => 'Lacrosse Elementary'
+}
+
+# 'Magruder Elementary' => 'Discovery Stem Academy'}
+
+# Nokesville Elementary/The Nokesville/g
+# >s/Mount/Mt./g Olivet
+# s/Carver/G.W. Carver/g
+# Carver College And Career Academy/Chesterfield Community High
+
 @schools = {}
 
 def lookup_school(school_id, division_id)
-
   key = school_id.to_s + '_' + division_id.to_s
   if @schools.has_key? (key)
     return @schools[key]
   else
     school = School.find_by school_id: school_id, division_id: division_id
-    @schools[key] = school
+    if not school.nil?
+      @schools[key] = school
+    else
+      puts "error querying for schoolId=#{school_id} divisionId=#{division_id}"
+    end
   end
-
-  if school.nil?
-    p 'school missing for ' + school_id + ' ' + division_id
-    abort
-  end
-
-  # p school
   school
 end
 
@@ -95,24 +114,34 @@ CSV.foreach('db/data/demographic.csv') do |row|
   division_id = row[DIV_ID_COL].strip
   division_name = row[DIV_NAME_COL].strip
   school_id = row[SCHOOL_ID_COL].strip
-  school_name = row[SCHOOL_NAME_COL].strip.gsub(/Charter School/, 'Charter')
+  school_name = row[SCHOOL_NAME_COL].strip.gsub(/Charter School/, 'Charter').gsub(/\./, '')
+  school_name = SCHOOL_NAME_CHANGES[school_name] if SCHOOL_NAME_CHANGES.key?(school_name)
+
   if not division_name_to_id.has_key? division_name
     division_name_to_id[division_name] = division_id.to_i
     Division.create(id: division_id.to_i, name: division_name)
   end
-  school_name_to_division_id[school_name] = division_id.to_i if not school_name_to_division_id.has_key? school_name
-  if not school_name_to_school_id.has_key? school_name
-    school_name_to_school_id[school_name] = school_id.to_i
+
+  key = school_name + '_' + division_name
+  school_name_to_division_id[key] = division_id.to_i if not school_name_to_division_id.has_key? key
+  if not school_name_to_school_id.has_key? key
+    school_name_to_school_id[key] = school_id.to_i
     School.create(school_id: school_id.to_i, division_id: division_id.to_i, name: school_name)
   end
 
-  grade = row[GRADE_COL].strip
-  year = row[YEAR_COL].strip
-  (HOAR_M_COL..TWOOMR_F_COL).each do |i|
-    school = lookup_school(school_id, division_id)
-    dgs << {:school_id => school.id, :school_year => year, :grade => grade, :category => i, :count => row[i].strip}
-  end
+  # grade = row[GRADE_COL].strip
+  # year = row[YEAR_COL].strip
+  # (HOAR_M_COL..TWOOMR_F_COL).each do |i|
+  #   school = lookup_school(school_id, division_id)
+  #   if not school.nil?
+  #     dgs << Demographic.new(:school_id => school.id, :school_year => year, :grade => grade, :category => i, :count => row[i].strip)
+  #   else
+  #     puts "demos: school missing for schoolId=#{school_id} divisionId=#{division_id}"
+  #     #puts @schools
+  #   end
+  # end
 end
+
 
 ################################
 # Demographics 
@@ -120,9 +149,7 @@ end
 
 # p dgs
 
-Demographic.transaction do
-  Demographic.create(dgs)
-end
+# Demographic.import dgs
 
 ################################
 # Scores 
@@ -134,10 +161,24 @@ CSV.foreach('db/data/scores.csv') do |row|
   next if row.empty?
 
   school_name = row[0].strip.gsub(/\./, '').gsub(/Charter School/, 'Charter')
+  school_name = SCHOOL_NAME_CHANGES[school_name] if SCHOOL_NAME_CHANGES.key?(school_name)
 
-  school_id = school_name_to_school_id[school_name]
-  division_id = school_name_to_division_id[school_name]
-  # division_name = row[1].strip.gsub(/ Public Schools/, "") 
+  division_name = row[1].strip.gsub(/ Public Schools/, "")
+
+  key = school_name + '_' + division_name
+
+  school_id = school_name_to_school_id[key]
+  if school_id.nil?
+    puts "school id '#{school_id.to_s}' is nil for '#{key}'"
+    next
+  end
+
+  division_id = school_name_to_division_id[key]
+  if division_id.nil?
+    puts "divison_id '#{division_id.to_s}' is nil for '#{key}'"
+    next
+  end
+
   year = row[2].strip
   test_type = row[3].strip
   grade = row[4].strip.gsub(/Grade /, '')
@@ -150,22 +191,19 @@ CSV.foreach('db/data/scores.csv') do |row|
     abort
   end
 
-  if school_id.nil? or division_id.nil?
-    p 'school id ' + school_id.to_s + ' or divison_id ' + division_id.to_s + ' nil for ' + school_name.to_s
-    abort
+  school = lookup_school(school_id, division_id)
+  if not school.nil?
+    scores << Score.new(:school_id => school.id, :school_year => year,
+                        :test_type => test_type, :grade => grade, :result_level => RESULT_LEVEL_CODES[result_level],
+                        :subgroup => SOL_SCORE_DG_CODES[subgroup], :percentage => percentage)
+  else
+    puts "scores: school missing for schoolId=#{school_id} divisionId=#{division_id}"
   end
 
-  school = lookup_school(school_id, division_id)
-
-  scores << {:school_id => school.id, :school_year => year,
-             :test_type => test_type, :grade => grade, :result_level => RESULT_LEVEL_CODES[result_level],
-             :subgroup => SOL_SCORE_DG_CODES[subgroup], :percentage => percentage }
 end
 
 # p scores
 
-Score.transaction do
-  Score.create(scores)
-end
+Score.import scores
 
 puts "Ran in %s s" % (Time.now - start).round.to_s
